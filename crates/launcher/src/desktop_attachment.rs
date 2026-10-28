@@ -109,6 +109,7 @@ pub(super) fn endpoint_ready(port: u16, timeout: Duration) -> bool {
 pub(super) fn wait_for_host_chain(
     desktop_pid: u32,
     options: &ResolvedLaunchOptions,
+    alternate_host: Option<&Path>,
     timeout: Duration,
 ) -> Result<bool, Box<dyn Error>> {
     let started = Instant::now();
@@ -117,6 +118,11 @@ pub(super) fn wait_for_host_chain(
             && descendant_executable_exists(desktop_pid, &options.node)?
         {
             return Ok(true);
+        }
+        if let Some(host) = alternate_host {
+            if descendant_executable_exists(desktop_pid, host)? {
+                return Ok(true);
+            }
         }
         thread::sleep(Duration::from_millis(100));
     }

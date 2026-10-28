@@ -1057,6 +1057,18 @@ export function installCurrentRendererAdapter(): {
   };
   window.addEventListener("codexhost:draft-prewarm-policy-changed", handleRoutingPolicyChange);
   currentRequestRoute();
+  // Codex Desktop 26.1023 (AppX) can mount its React request manager later
+  // than the adapter's initial discovery window. Keep re-evaluating the route
+  // until the request bridge is ready instead of leaving the adapter stuck in
+  // the installing state (Renderer connection unavailable).
+  const recoveryTimer = window.setInterval(() => {
+    if (disposed) return;
+    try {
+      currentRequestRoute();
+    } catch {
+      // Routing is still settling; the next tick will re-check.
+    }
+  }, 3_000);
 
   const applyAgent = (
     agent: RendererAgent,
@@ -1104,6 +1116,7 @@ export function installCurrentRendererAdapter(): {
       window.removeEventListener(REACT_FIBER_WALK_LIMIT_EVENT, onFiberWalkLimit);
       const cleanups = [
         ...[...selectedPolicies.values()].map((policy) => () => policy.select(null)),
+        () => window.clearInterval(recoveryTimer),
         () => forkControl.dispose(),
         () => stopGroupSync(),
         () => clients.dispose(),

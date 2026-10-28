@@ -751,7 +751,12 @@ fn supervise_desktop(
     let mut controller = start_desktop_controller(options, control, environment)?;
     let desktop_pid = desktop.root_snapshot().id;
     startup_trace("waiting for Host chain");
-    if !wait_for_host_chain(desktop_pid, options, Duration::from_secs(30))? {
+    if !wait_for_host_chain(
+        desktop_pid,
+        options,
+        Some(&installation.packaged_codex_cli),
+        Duration::from_secs(30),
+    )? {
         let _ = stop_desktop_controller(&mut controller);
         let _ = desktop.shutdown(Duration::from_secs(2));
         return Err("Codex Desktop did not start the codexhost Host chain before timeout".into());
@@ -841,7 +846,12 @@ fn supervise_desktop(
         }
     };
     startup_trace("waiting for Host chain");
-    if !wait_for_host_chain(desktop_pid, options, Duration::from_secs(30))? {
+    if !wait_for_host_chain(
+        desktop_pid,
+        options,
+        Some(&installation.packaged_codex_cli),
+        Duration::from_secs(30),
+    )? {
         let _ = stop_desktop_controller(&mut controller);
         let _ = desktop.kill();
         let _ = desktop.wait();
@@ -887,6 +897,18 @@ fn supervise_desktop(
             );
         }
         if let Some(status) = desktop.try_wait()? {
+            // Codex Desktop 26.1023 (AppX) DirectExecutable activator process
+            // exits on its own about 1 second after the real desktop tree is
+            // created. The desktop process tree is still alive at that point, so
+            // this must not be treated as the desktop shutting down; otherwise
+            // the controller would be killed before injection completes.
+            let tree_still_running = desktop_root_process_ids_for_installation(installation)?
+                .into_iter()
+                .any(|root| root != desktop_pid && process_exists(root));
+            if tree_still_running {
+                thread::sleep(Duration::from_millis(100));
+                continue;
+            }
             stop_desktop_controller(&mut controller)?;
             if !status.success() {
                 return Err(format!("Codex Desktop exited unsuccessfully: {status}").into());

@@ -20,7 +20,7 @@ export interface RendererDraftPrewarmPolicyStatus {
   reason: "owned-request-bridge";
 }
 
-const REQUEST_MANAGER_WAIT_TIMEOUT_MS = 60_000;
+const REQUEST_MANAGER_WAIT_TIMEOUT_MS = 120_000;
 const REQUEST_MANAGER_POLL_INTERVAL_MS = 25;
 
 function directRendererInstaller(): string {
